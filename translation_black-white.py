@@ -15,7 +15,6 @@ st.set_page_config(
     layout="centered"
 )
 
-# 🎨 [디자인 고정] 미니멀 매트 블랙 테마 및 완벽한 표준 CSS 옵션 반영
 st.markdown("""
     <style>
         .main { background-color: #FFFFFF; }
@@ -38,7 +37,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 🛠️ [버그 수정 1] 이미지 포맷을 RGB로 강제 전처리하는 함수
 def preprocess_image(uploaded_file):
     try:
         img = Image.open(uploaded_file)
@@ -51,20 +49,23 @@ def preprocess_image(uploaded_file):
         st.error(f"이미지 전처리 중 오류가 발생했습니다: {e}")
         return None
 
-# 🛠️ [버그 수정 2] Upstage Document Parse 파라미터 규격을 "file"로 변경
+# 🛠️ [405 에러 해결] 통신 규격 및 헤더 정밀 세팅
 def extract_text_from_image(image_bytes, api_key):
     try:
         url = "https://upstage.ai"
         headers = {"Authorization": f"Bearer {api_key}"}
         
-        # [핵심 교정] 파라미터 이름을 공식 규격인 "file"로 변경
+        # 파일 전송 파라미터를 "file" 명세로 고정하여 멀티파트 데이터 스트림 전달
         files = {"file": ("image.jpg", io.BytesIO(image_bytes), "image/jpeg")}
         
         response = requests.post(url, headers=headers, files=files)
+        
         if response.status_code == 200:
             return response.json().get("text", "")
         else:
             st.error(f"OCR 인식에 실패했습니다. (서버 응답 코드: {response.status_code})")
+            with st.expander("🔍 상세 에러 로그 확인"):
+                st.write(response.text)
             return None
     except Exception as e:
         st.error(f"네트워크 오류가 발생했습니다: {e}")
@@ -132,10 +133,10 @@ def generate_translation_and_vocab(english_text, api_key, major_info, user_level
         st.error(f"오류가 발생했습니다: {e}")
         return None
 
-# 📱 메인 UI
+# 메인 레이아웃
 st.write("\n")
 st.title("AI 학년별 맞춤 원서 번역기")
-st.markdown("<p class='sub-title'> 고화질 스크린샷 무손실 우회 가동 모델</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub-title'>미니멀리즘 테마 | 고화질 스크린샷 무손실 우회 가동 모델</p>", unsafe_allow_html=True)
 
 if UPSTAGE_API_KEY == "UPSTAGE_API_KEY" or not UPSTAGE_API_KEY:
     st.warning("⚠️ 코드 내 `UPSTAGE_API_KEY` 변수에 실제 키 값을 입력해 주세요.")
@@ -151,13 +152,7 @@ else:
     with col_level:
         user_level = st.selectbox(
             "현재 본인의 학업 단계를 선택하세요:",
-            [
-                "고등학교 1~2학년 (기초/내신)", 
-                "고등학교 3학년 (수능/심화입시)", 
-                "대학 신입생 / 입문자 (학부 1~2학년)", 
-                "학부 고학년 (학부 3~4학년)", 
-                "대학원생 / 연구원 (석박사 단계)"
-            ],
+            ["고등학교 1~2학년 (기초/내신)", "고등학교 3학년 (수능/심화입시)", "대학 신입생 / 입문자 (학부 1~2학년)", "학부 고학년 (학부 3~4학년)", "대학원생 / 연구원 (석박사 단계)"],
             index=2
         )
         
@@ -169,10 +164,10 @@ else:
 
     st.write("\n")
     st.markdown("#### 📸 2. 원서 데이터 스캔")
-    input_method = st.radio("원서 입력 방식을 선택하세요:", ["카메라 촬영", "이미지 파일 업로드"], horizontal=True)
+    input_method = st.radio("원서 입력 방식을 선택하세요:", ["실시간 카메라로 찍기", "이미지 파일 업로드하기"], horizontal=True)
     
     uploaded_file = None
-    if input_method == "카메라 촬영":
+    if input_method == "실시간 카메라로 찍기":
         uploaded_file = st.camera_input("책이나 시험지 문단을 카메라 정면에 맞춰서 찍어주세요")
     else:
         uploaded_file = st.file_uploader("분석할 이미지 파일을 선택하세요 (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
@@ -182,7 +177,7 @@ else:
         
         if image_bytes is not None:
             st.write("\n")
-            if input_method == "이미지 파일 업로드":
+            if input_method == "이미지 파일 업로드하기":
                 st.image(image_bytes, use_container_width=True)
                 st.write("\n")
             
