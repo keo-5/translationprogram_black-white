@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import io
+from PIL import Image
 
 # ==========================================
 # [개발자 설정] 여기에 발급받은 Upstage API Key를 입력하세요.
@@ -8,14 +9,13 @@ import io
 UPSTAGE_API_KEY = "up_Y7OKHBUB2q7pi7C4E1ILIWItBAUOG" 
 # ==========================================
 
-# 1. 스트림릿 브라우저 탭 설정 (미니멀 스타일)
 st.set_page_config(
     page_title="AI 학년별 맞춤 원서 번역기 (B&W)",
     page_icon="📚",
     layout="centered"
 )
 
-# 2. 🎨 [디자인 고정] 미니멀 매트 블랙 테마 적용 (노션/애플 감성)
+# 🎨 [디자인 고정] 미니멀 매트 블랙 테마 및 완벽한 표준 CSS 옵션 반영
 st.markdown("""
     <style>
         .main { background-color: #FFFFFF; }
@@ -38,24 +38,38 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Upstage Document Parse (OCR) 기능 함수
+# 🛠️ [버그 수정 1] 이미지 포맷을 RGB로 강제 전처리하는 함수
+def preprocess_image(uploaded_file):
+    try:
+        img = Image.open(uploaded_file)
+        if img.mode in ("RGBA", "P", "L"):
+            img = img.convert("RGB")
+        buffer = io.BytesIO()
+        img.save(buffer, format="JPEG")
+        return buffer.getvalue()
+    except Exception as e:
+        st.error(f"이미지 전처리 중 오류가 발생했습니다: {e}")
+        return None
+
+# 🛠️ [버그 수정 2] Upstage Document Parse 파라미터 규격을 "file"로 변경
 def extract_text_from_image(image_bytes, api_key):
     try:
         url = "https://upstage.ai"
         headers = {"Authorization": f"Bearer {api_key}"}
-        files = {"document": ("image.png", io.BytesIO(image_bytes), "image/png")}
+        
+        # [핵심 교정] 파라미터 이름을 공식 규격인 "file"로 변경
+        files = {"file": ("image.jpg", io.BytesIO(image_bytes), "image/jpeg")}
         
         response = requests.post(url, headers=headers, files=files)
         if response.status_code == 200:
             return response.json().get("text", "")
         else:
-            st.error(f"OCR 인식에 실패했습니다. 이미지 선명도를 확인해 주세요.")
+            st.error(f"OCR 인식에 실패했습니다. (서버 응답 코드: {response.status_code})")
             return None
     except Exception as e:
         st.error(f"네트워크 오류가 발생했습니다: {e}")
         return None
 
-# 4. Upstage Solar LLM 기능 함수 (5단계 맞춤형 가이드 라인 반영)
 def generate_translation_and_vocab(english_text, api_key, major_info, user_level):
     try:
         url = "https://upstage.ai"
@@ -110,7 +124,7 @@ def generate_translation_and_vocab(english_text, api_key, major_info, user_level
         
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"] # [인덱스 버그 수정 완료]
+            return response.json()["choices"][0]["message"]["content"]
         else:
             st.error("Solar LLM 서버 통신에 실패했습니다.")
             return None
@@ -118,10 +132,10 @@ def generate_translation_and_vocab(english_text, api_key, major_info, user_level
         st.error(f"오류가 발생했습니다: {e}")
         return None
 
-# 5. 메인 UI 화면 레이아웃 정의
+# 📱 메인 UI
 st.write("\n")
 st.title("AI 학년별 맞춤 원서 번역기")
-st.markdown("<p class='sub-title'> 모바일 카메라 스캔 및 학년별 개인 최적화 맞춤 번역</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub-title'> 고화질 스크린샷 무손실 우회 가동 모델</p>", unsafe_allow_html=True)
 
 if UPSTAGE_API_KEY == "UPSTAGE_API_KEY" or not UPSTAGE_API_KEY:
     st.warning("⚠️ 코드 내 `UPSTAGE_API_KEY` 변수에 실제 키 값을 입력해 주세요.")
@@ -154,45 +168,44 @@ else:
         selected_major = major_category
 
     st.write("\n")
-    
     st.markdown("#### 📸 2. 원서 데이터 스캔")
     input_method = st.radio("원서 입력 방식을 선택하세요:", ["카메라 촬영", "이미지 파일 업로드"], horizontal=True)
     
     uploaded_file = None
-    
     if input_method == "카메라 촬영":
         uploaded_file = st.camera_input("책이나 시험지 문단을 카메라 정면에 맞춰서 찍어주세요")
     else:
         uploaded_file = st.file_uploader("분석할 이미지 파일을 선택하세요 (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
     
     if uploaded_file is not None:
-        image_bytes = uploaded_file.read()
-        st.write("\n")
+        image_bytes = preprocess_image(uploaded_file)
         
-        if input_method == "이미지 파일 업로드":
-            st.image(image_bytes, use_container_width=True)
+        if image_bytes is not None:
             st.write("\n")
-        
-        if st.button("🚀 개인 맞춤형 AI 독해 분석 시작", type="primary"):
-            with st.spinner("Processing OCR (이미지 스캔 중)..."):
-                extracted_text = extract_text_from_image(image_bytes, UPSTAGE_API_KEY)
+            if input_method == "이미지 파일 업로드":
+                st.image(image_bytes, use_container_width=True)
+                st.write("\n")
             
-            if extracted_text:
-                with st.expander("📝 추출된 영어 원문 데이터 확인"):
-                    st.text(extracted_text)
+            if st.button("🚀 개인 맞춤형 AI 독해 분석 시작", type="primary"):
+                with st.spinner("Processing OCR (고화질 보정 스캔 중)..."):
+                    extracted_text = extract_text_from_image(image_bytes, UPSTAGE_API_KEY)
                 
-                with st.spinner(f"Processing Solar AI (학년별 최적화 가이드 수립 중)..."):
-                    ai_result = generate_translation_and_vocab(extracted_text, UPSTAGE_API_KEY, selected_major, user_level)
-                
-                if ai_result:
-                    st.markdown("---")
-                    st.markdown(f"### 🎯 개인 맞춤형 독해 리포트")
-                    st.caption(f"설정 타깃 도메인: {selected_major} | 선택된 독자 레벨: {user_level}")
-                    st.markdown(ai_result)
+                if extracted_text:
+                    with st.expander("📝 추출된 영어 원문 데이터 확인"):
+                        st.text(extracted_text)
                     
-                    st.download_button(
-                        label="💾 나만의 학습 리포트 다운로드 (.txt)",
-                        data=ai_result,
-                        file_name=f"AI_Study_Report_{user_level}.txt",
-                        mime="text/plain"
-                    )
+                    with st.spinner(f"Processing Solar AI (학년별 최적화 가이드 수립 중)..."):
+                        ai_result = generate_translation_and_vocab(extracted_text, UPSTAGE_API_KEY, selected_major, user_level)
+                    
+                    if ai_result:
+                        st.markdown("---")
+                        st.markdown(f"### 🎯 개인 맞춤형 독해 리포트")
+                        st.caption(f"설정 타깃 도메인: {selected_major} | 선택된 독자 레벨: {user_level}")
+                        st.markdown(ai_result)
+                        
+                        st.download_button(
+                            label="💾 나만의 학습 리포트 다운로드 (.txt)",
+                            data=ai_result,
+                            file_name=f"AI_Study_Report_{user_level}.txt",
+                            mime="text/plain"
+                        )
