@@ -121,7 +121,7 @@ def generate_translation_and_vocab(english_text, api_key, major_info, user_level
 # 5. 메인 UI 화면 레이아웃 정의
 st.write("\n")
 st.title("AI 학년별 맞춤 원서 번역기")
-st.markdown("<p class='sub-title'>미니멀리즘 테마 | 모바일 카메라 스캔 및 학년별 개인 최적화 맞춤 번역</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub-title'> 모바일 카메라 스캔 및 학년별 개인 최적화 맞춤 번역</p>", unsafe_allow_html=True)
 
 if UPSTAGE_API_KEY == "UPSTAGE_API_KEY" or not UPSTAGE_API_KEY:
     st.warning("⚠️ 코드 내 `UPSTAGE_API_KEY` 변수에 실제 키 값을 입력해 주세요.")
@@ -156,11 +156,11 @@ else:
     st.write("\n")
     
     st.markdown("#### 📸 2. 원서 데이터 스캔")
-    input_method = st.radio("원서 입력 방식을 선택하세요:", ["실시간 카메라로 찍기", "이미지 파일 업로드하기"], horizontal=True)
+    input_method = st.radio("원서 입력 방식을 선택하세요:", ["카메라 촬영", "이미지 파일 업로드하기"], horizontal=True)
     
     uploaded_file = None
     
-    if input_method == "실시간 카메라로 찍기":
+    if input_method == "카메라 촬영":
         uploaded_file = st.camera_input("책이나 시험지 문단을 카메라 정면에 맞춰서 찍어주세요")
     else:
         uploaded_file = st.file_uploader("분석할 이미지 파일을 선택하세요 (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
