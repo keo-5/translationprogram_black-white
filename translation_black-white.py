@@ -156,7 +156,7 @@ else:
     st.write("\n")
     
     st.markdown("#### 📸 2. 원서 데이터 스캔")
-    input_method = st.radio("원서 입력 방식을 선택하세요:", ["카메라 촬영", "이미지 파일 업로드하기"], horizontal=True)
+    input_method = st.radio("원서 입력 방식을 선택하세요:", ["카메라 촬영", "이미지 파일 업로드"], horizontal=True)
     
     uploaded_file = None
     
@@ -169,7 +169,7 @@ else:
         image_bytes = uploaded_file.read()
         st.write("\n")
         
-        if input_method == "이미지 파일 업로드하기":
+        if input_method == "이미지 파일 업로드":
             st.image(image_bytes, use_container_width=True)
             st.write("\n")
         
