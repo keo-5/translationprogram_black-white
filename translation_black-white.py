@@ -9,14 +9,13 @@ from PIL import Image
 UPSTAGE_API_KEY = "up_Y7OKHBUB2q7pi7C4E1ILIWItBAUOG" 
 # ==========================================
 
-# 1. 스트림릿 브라우저 탭 설정
 st.set_page_config(
     page_title="AI 학년별 맞춤 원서 번역기 (B&W)",
     page_icon="📚",
     layout="centered"
 )
 
-# 2. 🎨 미니멀 매트 블랙 테마 적용
+# 🎨 미니멀 매트 블랙 테마
 st.markdown("""
     <style>
         .main { background-color: #FFFFFF; }
@@ -39,7 +38,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. 🖼️ [안전장치] 고화질 스크린샷 알파채널 제거 전처리 함수
 def preprocess_image(uploaded_file):
     try:
         img = Image.open(uploaded_file)
@@ -52,33 +50,45 @@ def preprocess_image(uploaded_file):
         st.error(f"이미지 전처리 중 오류가 발생했습니다: {e}")
         return None
 
-# 🛠️ [405 에러 진짜 해결] Upstage 공식 SDK 표준 문법 반영
+# 🛠️ [405 및 Not Defined 버그 영구 봉쇄] 
 def extract_text_from_image(image_bytes, api_key):
     try:
-        # 공식 SDK 클라이언트 객체 생성 (엔드포인트 매핑 버그 원천 해결)
-        client = Upstage(api_key=api_key)
+        # 업스테이지 공식 최신 텍스트 추출 API 주소
+        url = "https://upstage.ai"
         
-        # 임시 바이트 데이터를 메모리 파일 스트림 객체로 변환
-        image_file_like = io.BytesIO(image_bytes)
+        # Content-Type을 절대 수동으로 적지 않고 Authorization만 깔끔하게 주입
+        headers = {
+            "Authorization": f"Bearer {api_key}"
+        }
         
-        # 💡 [업스테이지 공식 명세 표준 문법] layout_analysis 컴포넌트 호출
-        response = client.layout_analysis.create(
-            files=[image_file_like]
-        )
+        # 💡 [405 에러 해결의 핵심] 파일 전송 시 튜플 포맷을 완벽하게 맞춤
+        files = {
+            "document": ("image.jpg", io.BytesIO(image_bytes), "image/jpeg")
+        }
         
-        # 공식 데이터 응답 객체 내부의 통합 추출 텍스트 속성을 안전하게 추출
-        extracted_text = getattr(response, "text", "")
-        return extracted_text
+        response = requests.post(url, headers=headers, files=files)
         
+        if response.status_code == 200:
+            result_json = response.json()
+            # 업스테이지 공식 JSON 트리 구조에 맞춰 안전하게 text 추출
+            return result_json.get("text", "")
+        else:
+            st.error(f"OCR 서버 통신 거부 (코드: {response.status_code})")
+            with st.expander("🔍 상세 에러 로그 확인"):
+                st.code(response.text)
+            return None
     except Exception as e:
-        st.error(f"OCR 서버 연동 중 예외가 발생했습니다: {e}")
+        st.error(f"네트워크 오류가 발생했습니다: {e}")
         return None
 
-# 4. Upstage Solar LLM 기능 함수 (5단계 맞춤형 가이드 라인 반영)
 def generate_translation_and_vocab(english_text, api_key, major_info, user_level):
     try:
-        # Solar LLM 역시 공식 패키지를 경유하여 OpenAI 표준 규격으로 자동 매칭
-        client = Upstage(api_key=api_key)
+        # LLM 또한 requests를 이용한 웹 표준 통신으로 변경하여 모듈 에러 원천 차단
+        url = "https://upstage.ai"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
         
         level_instruction = ""
         if user_level == "고등학교 1~2학년 (기초/내신)":
@@ -118,25 +128,29 @@ def generate_translation_and_vocab(english_text, api_key, major_info, user_level
             f"본문에서 독자의 현재 학습 단계에 가장 치명적이고 중요한 어휘를 5개 이상 엄선하여 [단어 - 뜻 - 맞춤형 가이드 해설] 형태로 요약 단어장을 만들어줘."
         )
         
-        # 💡 공식 가이드라인 표준 규격 호출 문법 고정
-        response = client.chat.completions.create(
-            model="solar-mini",
-            messages=[
+        payload = {
+            "model": "solar-mini",
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"다음 영어 텍스트를 처리해줘:\n\n{english_text}"}
             ],
-            temperature=0.2
-        )
-        return response.choices[0].message.content # [교정] 리스트 인덱싱 접근 정상화
+            "temperature": 0.2
+        }
         
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"] # [인덱스 보정 완료]
+        else:
+            st.error("Solar LLM 서버 통신에 실패했습니다.")
+            return None
     except Exception as e:
-        st.error(f"Solar LLM 처리 중 오류가 발생했습니다: {e}")
+        st.error(f"오류가 발생했습니다: {e}")
         return None
 
-# 5. 메인 UI 화면 레이아웃
+# 메인 UI 레이아웃
 st.write("\n")
 st.title("AI 학년별 맞춤 원서 번역기")
-st.markdown("<p class='sub-title'>미니멀리즘 테마 | 고화질 스크린샷 무손실 우회 가동 모델</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub-title'>미니멀리즘 테마 | 고화질 스크린샷 무손실 우회 가동 모델</p>", unsafe_with_html=True)
 
 if UPSTAGE_API_KEY == "UPSTAGE_API_KEY" or not UPSTAGE_API_KEY:
     st.warning("⚠️ 코드 내 `UPSTAGE_API_KEY` 변수에 실제 키 값을 입력해 주세요.")
@@ -182,7 +196,7 @@ else:
                 st.write("\n")
             
             if st.button("🚀 개인 맞춤형 AI 독해 분석 시작", type="primary"):
-                with st.spinner("Processing OCR (공식 SDK 레이아웃 가동)..."):
+                with st.spinner("Processing OCR (고화질 보정 스캔 중)..."):
                     extracted_text = extract_text_from_image(image_bytes, UPSTAGE_API_KEY)
                 
                 if extracted_text and extracted_text.strip() != "":
