@@ -9,13 +9,14 @@ from PIL import Image
 UPSTAGE_API_KEY = "up_Y7OKHBUB2q7pi7C4E1ILIWItBAUOG" 
 # ==========================================
 
+# 1. 스트림릿 브라우저 탭 설정
 st.set_page_config(
     page_title="AI 학년별 맞춤 원서 번역기 (B&W)",
     page_icon="📚",
     layout="centered"
 )
 
-# 🎨 미니멀 매트 블랙 테마
+# 2. 🎨 미니멀 매트 블랙 테마 적용
 st.markdown("""
     <style>
         .main { background-color: #FFFFFF; }
@@ -38,6 +39,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# 3. 🖼️ [안전장치] 고화질 스크린샷 알파채널 제거 전처리 함수
 def preprocess_image(uploaded_file):
     try:
         img = Image.open(uploaded_file)
@@ -50,35 +52,33 @@ def preprocess_image(uploaded_file):
         st.error(f"이미지 전처리 중 오류가 발생했습니다: {e}")
         return None
 
-# 🛠️ [405 에러 진짜 해결] Upstage 공식 OCR 표준 API 연동 함수
+# 🛠️ [405 에러 진짜 해결] Upstage 공식 SDK 표준 문법 반영
 def extract_text_from_image(image_bytes, api_key):
     try:
-        # 💡 [핵심 교정] 405 차단막을 뚫는 진짜 업스테이지 OCR 공식 Endpoint 주소입니다.
-        url = "https://upstage.ai"
-        headers = {"Authorization": f"Bearer {api_key}"}
+        # 공식 SDK 클라이언트 객체 생성 (엔드포인트 매핑 버그 원천 해결)
+        client = Upstage(api_key=api_key)
         
-        # 공식 명세에 명시된 멀티파트 파라미터 이름 "document" 규칙 준수
-        files = {"document": ("image.jpg", io.BytesIO(image_bytes), "image/jpeg")}
+        # 임시 바이트 데이터를 메모리 파일 스트림 객체로 변환
+        image_file_like = io.BytesIO(image_bytes)
         
-        response = requests.post(url, headers=headers, files=files)
+        # 💡 [업스테이지 공식 명세 표준 문법] layout_analysis 컴포넌트 호출
+        response = client.layout_analysis.create(
+            files=[image_file_like]
+        )
         
-        if response.status_code == 200:
-            result_json = response.json()
-            # 💡 [핵심 교정] Upstage OCR API의 리턴 JSON은 최상위 루트의 "text" 키에 추출 문자열이 들어있습니다.
-            return result_json.get("text", "")
-        else:
-            st.error(f"OCR 서버 통신 실패 (코드: {response.status_code})")
-            with st.expander("🔍 상세 에러 로그 확인"):
-                st.code(response.text)
-            return None
+        # 공식 데이터 응답 객체 내부의 통합 추출 텍스트 속성을 안전하게 추출
+        extracted_text = getattr(response, "text", "")
+        return extracted_text
+        
     except Exception as e:
-        st.error(f"네트워크 오류가 발생했습니다: {e}")
+        st.error(f"OCR 서버 연동 중 예외가 발생했습니다: {e}")
         return None
 
+# 4. Upstage Solar LLM 기능 함수 (5단계 맞춤형 가이드 라인 반영)
 def generate_translation_and_vocab(english_text, api_key, major_info, user_level):
     try:
-        url = "https://upstage.ai"
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        # Solar LLM 역시 공식 패키지를 경유하여 OpenAI 표준 규격으로 자동 매칭
+        client = Upstage(api_key=api_key)
         
         level_instruction = ""
         if user_level == "고등학교 1~2학년 (기초/내신)":
@@ -118,23 +118,19 @@ def generate_translation_and_vocab(english_text, api_key, major_info, user_level
             f"본문에서 독자의 현재 학습 단계에 가장 치명적이고 중요한 어휘를 5개 이상 엄선하여 [단어 - 뜻 - 맞춤형 가이드 해설] 형태로 요약 단어장을 만들어줘."
         )
         
-        payload = {
-            "model": "solar-mini",
-            "messages": [
+        # 💡 공식 가이드라인 표준 규격 호출 문법 고정
+        response = client.chat.completions.create(
+            model="solar-mini",
+            messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"다음 영어 텍스트를 처리해줘:\n\n{english_text}"}
             ],
-            "temperature": 0.2
-        }
+            temperature=0.2
+        )
+        return response.choices[0].message.content # [교정] 리스트 인덱싱 접근 정상화
         
-        response = requests.post(url, headers=headers, json=payload)
-        if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"] # [최종 검증 완료] 배열 인덱스 0번 매핑 구조 안착
-        else:
-            st.error("Solar LLM 서버 통신에 실패했습니다.")
-            return None
     except Exception as e:
-        st.error(f"오류가 발생했습니다: {e}")
+        st.error(f"Solar LLM 처리 중 오류가 발생했습니다: {e}")
         return None
 
 # 5. 메인 UI 화면 레이아웃
@@ -186,7 +182,7 @@ else:
                 st.write("\n")
             
             if st.button("🚀 개인 맞춤형 AI 독해 분석 시작", type="primary"):
-                with st.spinner("Processing OCR (공식 도큐먼트 레이아웃 스캔 중)..."):
+                with st.spinner("Processing OCR (공식 SDK 레이아웃 가동)..."):
                     extracted_text = extract_text_from_image(image_bytes, UPSTAGE_API_KEY)
                 
                 if extracted_text and extracted_text.strip() != "":
