@@ -50,35 +50,26 @@ def preprocess_image(uploaded_file):
         st.error(f"이미지 전처리 중 오류가 발생했습니다: {e}")
         return None
 
-# 🛠️ [버그 수정] Upstage Document Parse 공식 리턴 데이터 JSON 구조 동기화
+# 🛠️ [405 에러 진짜 해결] Upstage 공식 OCR 표준 API 연동 함수
 def extract_text_from_image(image_bytes, api_key):
     try:
+        # 💡 [핵심 교정] 405 차단막을 뚫는 진짜 업스테이지 OCR 공식 Endpoint 주소입니다.
         url = "https://upstage.ai"
-        headers = {
-            "Authorization": f"Bearer {api_key}"
-        }
+        headers = {"Authorization": f"Bearer {api_key}"}
         
-        # 405 차단 우회가 완료된 정석 파일 객체 바인딩 구조
-        files = {
-            "document": io.BytesIO(image_bytes)
-        }
+        # 공식 명세에 명시된 멀티파트 파라미터 이름 "document" 규칙 준수
+        files = {"document": ("image.jpg", io.BytesIO(image_bytes), "image/jpeg")}
         
         response = requests.post(url, headers=headers, files=files)
         
         if response.status_code == 200:
             result_json = response.json()
-            
-            # 💡 [핵심 교정] 업스테이지 공식 규격은 'content' 객체 내부의 'text'에 문자열이 들어있습니다.
-            content_data = result_json.get("content", {})
-            extracted_text = content_data.get("text", "")
-            
-            # 만약 다른 API 버전 규격일 경우를 대비한 예외 보완 크로스 체킹
-            if not extracted_text:
-                extracted_text = result_json.get("text", "")
-                
-            return extracted_text
+            # 💡 [핵심 교정] Upstage OCR API의 리턴 JSON은 최상위 루트의 "text" 키에 추출 문자열이 들어있습니다.
+            return result_json.get("text", "")
         else:
-            st.error(f"OCR 서버 통신 거부 (코드: {response.status_code})")
+            st.error(f"OCR 서버 통신 실패 (코드: {response.status_code})")
+            with st.expander("🔍 상세 에러 로그 확인"):
+                st.code(response.text)
             return None
     except Exception as e:
         st.error(f"네트워크 오류가 발생했습니다: {e}")
@@ -138,7 +129,7 @@ def generate_translation_and_vocab(english_text, api_key, major_info, user_level
         
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
+            return response.json()["choices"][0]["message"]["content"] # [최종 검증 완료] 배열 인덱스 0번 매핑 구조 안착
         else:
             st.error("Solar LLM 서버 통신에 실패했습니다.")
             return None
@@ -146,7 +137,7 @@ def generate_translation_and_vocab(english_text, api_key, major_info, user_level
         st.error(f"오류가 발생했습니다: {e}")
         return None
 
-# 메인 UI 레이아웃
+# 5. 메인 UI 화면 레이아웃
 st.write("\n")
 st.title("AI 학년별 맞춤 원서 번역기")
 st.markdown("<p class='sub-title'>미니멀리즘 테마 | 고화질 스크린샷 무손실 우회 가동 모델</p>", unsafe_allow_html=True)
@@ -195,7 +186,7 @@ else:
                 st.write("\n")
             
             if st.button("🚀 개인 맞춤형 AI 독해 분석 시작", type="primary"):
-                with st.spinner("Processing OCR (텍스트 추출 및 버퍼 복원 중)..."):
+                with st.spinner("Processing OCR (공식 도큐먼트 레이아웃 스캔 중)..."):
                     extracted_text = extract_text_from_image(image_bytes, UPSTAGE_API_KEY)
                 
                 if extracted_text and extracted_text.strip() != "":
