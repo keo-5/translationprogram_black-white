@@ -50,19 +50,15 @@ def preprocess_image(uploaded_file):
         st.error(f"이미지 전처리 중 오류가 발생했습니다: {e}")
         return None
 
-# 🛠️ [405 에러 영구 박멸] 업스테이지 공식 curl 스펙과 일치하는 멀티파트 업로드 함수
+# 🛠️ [버그 수정] Upstage Document Parse 공식 리턴 데이터 JSON 구조 동기화
 def extract_text_from_image(image_bytes, api_key):
     try:
-        # 업스테이지 표준 Document AI 엔드포인트 주소 고정
-        url = "https://api.upstage.ai/v1/document-ai/document-parse"
-        
-        # 헤더에는 'Content-Type'을 수동으로 명시하지 마세요. (requests가 스스로 경계선을 긋도록 비워두어야 합니다)
+        url = "https://upstage.ai"
         headers = {
             "Authorization": f"Bearer {api_key}"
         }
         
-        # [공식 규격 교정] 파일 인자를 전달할 때 튜플 형식을 빼고 io.BytesIO 객체 자체를 매핑해야 
-        # 오픈레스티 게이트웨이에서 405 Method Not Allowed 우회가 성공합니다.
+        # 405 차단 우회가 완료된 정석 파일 객체 바인딩 구조
         files = {
             "document": io.BytesIO(image_bytes)
         }
@@ -70,11 +66,19 @@ def extract_text_from_image(image_bytes, api_key):
         response = requests.post(url, headers=headers, files=files)
         
         if response.status_code == 200:
-            return response.json().get("text", "")
+            result_json = response.json()
+            
+            # 💡 [핵심 교정] 업스테이지 공식 규격은 'content' 객체 내부의 'text'에 문자열이 들어있습니다.
+            content_data = result_json.get("content", {})
+            extracted_text = content_data.get("text", "")
+            
+            # 만약 다른 API 버전 규격일 경우를 대비한 예외 보완 크로스 체킹
+            if not extracted_text:
+                extracted_text = result_json.get("text", "")
+                
+            return extracted_text
         else:
             st.error(f"OCR 서버 통신 거부 (코드: {response.status_code})")
-            with st.expander("🔍 상세 에러 로그 확인"):
-                st.code(response.text)
             return None
     except Exception as e:
         st.error(f"네트워크 오류가 발생했습니다: {e}")
@@ -142,7 +146,7 @@ def generate_translation_and_vocab(english_text, api_key, major_info, user_level
         st.error(f"오류가 발생했습니다: {e}")
         return None
 
-# 메인 레이아웃
+# 메인 UI 레이아웃
 st.write("\n")
 st.title("AI 학년별 맞춤 원서 번역기")
 st.markdown("<p class='sub-title'>미니멀리즘 테마 | 고화질 스크린샷 무손실 우회 가동 모델</p>", unsafe_allow_html=True)
@@ -191,10 +195,10 @@ else:
                 st.write("\n")
             
             if st.button("🚀 개인 맞춤형 AI 독해 분석 시작", type="primary"):
-                with st.spinner("Processing OCR (고화질 보정 스캔 중)..."):
+                with st.spinner("Processing OCR (텍스트 추출 및 버퍼 복원 중)..."):
                     extracted_text = extract_text_from_image(image_bytes, UPSTAGE_API_KEY)
                 
-                if extracted_text:
+                if extracted_text and extracted_text.strip() != "":
                     with st.expander("📝 추출된 영어 원문 데이터 확인"):
                         st.text(extracted_text)
                     
@@ -213,3 +217,5 @@ else:
                             file_name=f"AI_Study_Report_{user_level}.txt",
                             mime="text/plain"
                         )
+                else:
+                    st.error("⚠️ 이미지 속에서 추출된 영문 텍스트가 없습니다. 글자가 선명하게 보이도록 다시 촬영하거나 업로드해 주세요.")
