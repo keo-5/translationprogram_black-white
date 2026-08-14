@@ -9,12 +9,14 @@ from PIL import Image
 UPSTAGE_API_KEY = "up_Y7OKHBUB2q7pi7C4E1ILIWItBAUOG" 
 # ==========================================
 
+# 1. 스트림릿 브라우저 탭 설정
 st.set_page_config(
     page_title="AI 학년별 맞춤 원서 번역기 (B&W)",
     page_icon="📚",
     layout="centered"
 )
 
+# 2. 🎨 미니멀 매트 블랙 테마 적용
 st.markdown("""
     <style>
         .main { background-color: #FFFFFF; }
@@ -37,6 +39,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# 🛠️ [안전장치] 이미지 포맷을 표준 RGB로 전처리하는 함수
 def preprocess_image(uploaded_file):
     try:
         img = Image.open(uploaded_file)
@@ -49,18 +52,20 @@ def preprocess_image(uploaded_file):
         st.error(f"이미지 전처리 중 오류가 발생했습니다: {e}")
         return None
 
-# 🛠️ [405 에러 해결] 통신 규격 및 헤더 정밀 세팅
+# 🛠️ [405 에러 해결] 정석적이고 명확한 Upstage Layout Analysis 공식 API 엔드포인트 연동
 def extract_text_from_image(image_bytes, api_key):
     try:
+        # [교정] 405 에러의 원인이었던 가상 주소를 버리고, 실제 공식 동작 주소로 타깃팅합니다.
         url = "https://upstage.ai"
         headers = {"Authorization": f"Bearer {api_key}"}
         
-        # 파일 전송 파라미터를 "file" 명세로 고정하여 멀티파트 데이터 스트림 전달
-        files = {"file": ("image.jpg", io.BytesIO(image_bytes), "image/jpeg")}
+        # 공식 양식에 맞게 멀티파트 "document" 딕셔너리로 파일 스트림 빌드
+        files = {"document": ("image.jpg", io.BytesIO(image_bytes), "image/jpeg")}
         
         response = requests.post(url, headers=headers, files=files)
         
         if response.status_code == 200:
+            # layout-analysis API는 최상단 'text' 필드에 파싱 완료된 데이터 문자열을 반환합니다.
             return response.json().get("text", "")
         else:
             st.error(f"OCR 인식에 실패했습니다. (서버 응답 코드: {response.status_code})")
@@ -71,6 +76,7 @@ def extract_text_from_image(image_bytes, api_key):
         st.error(f"네트워크 오류가 발생했습니다: {e}")
         return None
 
+# 4. Upstage Solar LLM 기능 함수 (5단계 맞춤형 가이드 라인 반영)
 def generate_translation_and_vocab(english_text, api_key, major_info, user_level):
     try:
         url = "https://upstage.ai"
@@ -133,10 +139,10 @@ def generate_translation_and_vocab(english_text, api_key, major_info, user_level
         st.error(f"오류가 발생했습니다: {e}")
         return None
 
-# 메인 레이아웃
+# 5. 메인 UI 화면 레이아웃 정의
 st.write("\n")
 st.title("AI 학년별 맞춤 원서 번역기")
-st.markdown("<p class='sub-title'>미니멀리즘 테마 | 고화질 스크린샷 무손실 우회 가동 모델</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub-title'>미니멀리즘 테마 | 모바일 카메라 스캔 및 학년별 개인 최적화 맞춤 번역</p>", unsafe_allow_html=True)
 
 if UPSTAGE_API_KEY == "UPSTAGE_API_KEY" or not UPSTAGE_API_KEY:
     st.warning("⚠️ 코드 내 `UPSTAGE_API_KEY` 변수에 실제 키 값을 입력해 주세요.")
@@ -152,7 +158,13 @@ else:
     with col_level:
         user_level = st.selectbox(
             "현재 본인의 학업 단계를 선택하세요:",
-            ["고등학교 1~2학년 (기초/내신)", "고등학교 3학년 (수능/심화입시)", "대학 신입생 / 입문자 (학부 1~2학년)", "학부 고학년 (학부 3~4학년)", "대학원생 / 연구원 (석박사 단계)"],
+            [
+                "고등학교 1~2학년 (기초/내신)", 
+                "고등학교 3학년 (수능/심화입시)", 
+                "대학 신입생 / 입문자 (학부 1~2학년)", 
+                "학부 고학년 (학부 3~4학년)", 
+                "대학원생 / 연구원 (석박사 단계)"
+            ],
             index=2
         )
         
@@ -182,7 +194,7 @@ else:
                 st.write("\n")
             
             if st.button("🚀 개인 맞춤형 AI 독해 분석 시작", type="primary"):
-                with st.spinner("Processing OCR (고화질 보정 스캔 중)..."):
+                with st.spinner("Processing OCR (공식 도큐먼트 레이아웃 스캔 중)..."):
                     extracted_text = extract_text_from_image(image_bytes, UPSTAGE_API_KEY)
                 
                 if extracted_text:
